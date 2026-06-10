@@ -13,6 +13,7 @@ export function useShortcuts(handlers: ShortcutHandlers): void {
       const target = e.target as HTMLElement | null
       if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
       if (target?.isContentEditable) return
+      if (e.metaKey || e.ctrlKey || e.altKey) return
       switch (e.key) {
         case 'n': case 'N': handlers.onNewNode(); break
         case 'e': case 'E': handlers.onConnectMode(); break

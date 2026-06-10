@@ -17,6 +17,15 @@ describe('useShortcuts', () => {
     expect(h.onDelete).toHaveBeenCalledOnce()
   })
 
+  it('ignores shortcuts when modifier keys are held', () => {
+    const h = { onNewNode: vi.fn(), onConnectMode: vi.fn(), onSearch: vi.fn(), onDelete: vi.fn() }
+    renderHook(() => useShortcuts(h))
+    fireEvent.keyDown(window, { key: 'n', ctrlKey: true })
+    fireEvent.keyDown(window, { key: 'n', metaKey: true })
+    fireEvent.keyDown(window, { key: 'n', altKey: true })
+    expect(h.onNewNode).not.toHaveBeenCalled()
+  })
+
   it('ignores keys while typing in an input', () => {
     const h = { onNewNode: vi.fn(), onConnectMode: vi.fn(), onSearch: vi.fn(), onDelete: vi.fn() }
     renderHook(() => useShortcuts(h))

@@ -9,14 +9,28 @@ import { useGraph } from '../graph/useGraph'
 import { updateNode, removeNode, removeEdge, addEdge as addDocEdge } from '../graph/doc'
 import { getTemplate } from '../graph/templates'
 
+export type Selection = { kind: 'node' | 'edge'; id: string } | null
+
 interface Props {
   doc: Y.Doc
-  selectedNodeId: string | null
-  onSelectNode: (id: string | null) => void
+  selection: Selection
+  onSelect: (sel: Selection) => void
   matchIds: Set<string> | null   // search results; null = not searching
 }
 
-export function GraphCanvas({ doc, selectedNodeId, onSelectNode, matchIds }: Props) {
+// Last-wins ordering from React Flow can emit [{A,true},{B,false}] when switching
+// selection; prefer the positive selection so switching works in one click.
+export function pickSelection(
+  changes: Array<{ type: string; id: string; selected?: boolean }>,
+  kind: 'node' | 'edge'
+): { kind: 'node' | 'edge'; id: string } | null | undefined {
+  const selects = changes.filter(c => c.type === 'select')
+  if (selects.length === 0) return undefined  // no selection change in this batch
+  const positive = selects.find(c => c.selected)
+  return positive ? { kind, id: positive.id } : null
+}
+
+export function GraphCanvas({ doc, selection, onSelect, matchIds }: Props) {
   const { nodes, edges, meta } = useGraph(doc)
 
   const rfNodes: Node[] = useMemo(() =>
@@ -24,36 +38,39 @@ export function GraphCanvas({ doc, selectedNodeId, onSelectNode, matchIds }: Pro
       id,
       position: { x: n.x, y: n.y },
       data: { label: n.label },
-      selected: id === selectedNodeId,
+      selected: selection?.kind === 'node' && selection.id === id,
       style: {
         background: n.color,
         borderRadius: 16,
-        border: id === selectedNodeId ? '2px solid #4a9eed' : '1px solid #00000022',
+        border: selection?.kind === 'node' && selection.id === id ? '2px solid #4a9eed' : '1px solid #00000022',
         padding: 8,
         opacity: matchIds && !matchIds.has(id) ? 0.25 : 1,
       },
-    })), [nodes, selectedNodeId, matchIds])
+    })), [nodes, selection, matchIds])
 
   const rfEdges: Edge[] = useMemo(() =>
     Object.entries(edges).map(([id, e]) => ({
       id, source: e.from, target: e.to, label: e.label || undefined,
-    })), [edges])
+      selected: selection?.kind === 'edge' && selection.id === id,
+    })), [edges, selection])
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     for (const c of changes) {
-      if (c.type === 'position' && c.position && !Number.isNaN(c.position.x)) {
+      if (c.type === 'position' && c.position && !Number.isNaN(c.position.x) && !Number.isNaN(c.position.y)) {
         updateNode(doc, c.id, { x: c.position.x, y: c.position.y })
       } else if (c.type === 'remove') {
         removeNode(doc, c.id)
-      } else if (c.type === 'select') {
-        onSelectNode(c.selected ? c.id : null)
       }
     }
-  }, [doc, onSelectNode])
+    const sel = pickSelection(changes as Array<{ type: string; id: string; selected?: boolean }>, 'node')
+    if (sel !== undefined) onSelect(sel)
+  }, [doc, onSelect])
 
   const onEdgesChange = useCallback((changes: EdgeChange[]) => {
     for (const c of changes) if (c.type === 'remove') removeEdge(doc, c.id)
-  }, [doc])
+    const sel = pickSelection(changes as Array<{ type: string; id: string; selected?: boolean }>, 'edge')
+    if (sel !== undefined) onSelect(sel)
+  }, [doc, onSelect])
 
   const onConnect = useCallback((conn: Connection) => {
     if (!conn.source || !conn.target) return
@@ -69,7 +86,8 @@ export function GraphCanvas({ doc, selectedNodeId, onSelectNode, matchIds }: Pro
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
-        onPaneClick={() => onSelectNode(null)}
+        onPaneClick={() => onSelect(null)}
+        deleteKeyCode={['Backspace', 'Delete']}
         fitView
         proOptions={{ hideAttribution: true }}
       >

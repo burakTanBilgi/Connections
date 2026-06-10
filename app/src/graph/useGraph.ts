@@ -13,6 +13,7 @@ export function useGraph(doc: Y.Doc): GraphState {
   const cache = useRef<GraphState | null>(null)
   const version = useRef(0)
   const lastVersion = useRef(-1)
+  const lastDoc = useRef<Y.Doc | null>(null)
 
   const subscribe = useCallback((onChange: () => void) => {
     const handler = () => { version.current++; onChange() }
@@ -21,6 +22,13 @@ export function useGraph(doc: Y.Doc): GraphState {
   }, [doc])
 
   const getSnapshot = useCallback((): GraphState => {
+    // If doc changed (e.g. navigating between graphs), reset cache to avoid
+    // serving stale data from the previous doc.
+    if (lastDoc.current !== doc) {
+      cache.current = null
+      lastVersion.current = -1
+      lastDoc.current = doc
+    }
     if (lastVersion.current !== version.current || cache.current === null) {
       cache.current = { nodes: getNodes(doc), edges: getEdges(doc), meta: getMeta(doc) }
       lastVersion.current = version.current

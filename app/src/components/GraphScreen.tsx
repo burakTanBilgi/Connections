@@ -5,15 +5,16 @@ import { addNode, initGraphDoc, getMeta } from '../graph/doc'
 import { exportGraph, importGraph } from '../graph/io'
 import { getTemplate } from '../graph/templates'
 import { useGraph } from '../graph/useGraph'
-import { GraphCanvas } from './GraphCanvas'
+import { GraphCanvas, type Selection } from './GraphCanvas'
 import { NodePanel } from './NodePanel'
+import { EdgePanel } from './EdgePanel'
 import { Toolbar } from './Toolbar'
 import { useShortcuts } from './useShortcuts'
 
 function GraphScreenInner({ open, title, onBack }: { open: OpenGraph; title: string; onBack: () => void }) {
   const doc = open.doc
   const { meta, nodes } = useGraph(doc)
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [selection, setSelection] = useState<Selection>(null)
   const [search, setSearch] = useState('')
   const { fitView } = useReactFlow()
   const fileInput = useRef<HTMLInputElement>(null)
@@ -30,7 +31,7 @@ function GraphScreenInner({ open, title, onBack }: { open: OpenGraph; title: str
       color: t.color,
       notes: '',
     })
-    setSelectedNodeId(id)
+    setSelection({ kind: 'node', id })
   }
 
   const matchIds = useMemo(() => {
@@ -85,9 +86,12 @@ function GraphScreenInner({ open, title, onBack }: { open: OpenGraph; title: str
         onChange={e => { const f = e.target.files?.[0]; if (f) doImport(f); e.target.value = '' }}
       />
       <div className="canvas-wrap">
-        <GraphCanvas doc={doc} selectedNodeId={selectedNodeId} onSelectNode={setSelectedNodeId} matchIds={matchIds} />
-        {selectedNodeId && (
-          <NodePanel doc={doc} nodeId={selectedNodeId} onClose={() => setSelectedNodeId(null)} />
+        <GraphCanvas doc={doc} selection={selection} onSelect={setSelection} matchIds={matchIds} />
+        {selection?.kind === 'node' && (
+          <NodePanel key={selection.id} doc={doc} nodeId={selection.id} onClose={() => setSelection(null)} />
+        )}
+        {selection?.kind === 'edge' && (
+          <EdgePanel key={selection.id} doc={doc} edgeId={selection.id} onClose={() => setSelection(null)} />
         )}
       </div>
     </div>
@@ -101,10 +105,11 @@ export function GraphScreen({ graphId, title, template, onBack }: { graphId: str
     const o = openGraphDoc(graphId)
     let active = true
     o.ready.then(() => {
+      if (!active) return
       if (!getMeta(o.doc).title) initGraphDoc(o.doc, { title, template, theme: 'light' })
-      if (active) setOpen(o)
+      setOpen(o)
     })
-    return () => { active = false; o.close() }
+    return () => { active = false; o.close().catch(() => {}) }
   }, [graphId, title, template])
 
   if (!open) return <div className="loading">Opening graph…</div>

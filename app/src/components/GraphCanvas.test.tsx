@@ -14,7 +14,7 @@ describe('GraphCanvas', () => {
     const doc = new Y.Doc()
     initGraphDoc(doc, { title: 't', template: 'friends', theme: 'light' })
     addNode(doc, { label: 'zoe', type: 'person', x: 100, y: 100, color: '#a5d8ff', notes: '' })
-    render(<GraphCanvas doc={doc} onSelectNode={vi.fn()} selectedNodeId={null} matchIds={null} />)
+    render(<GraphCanvas doc={doc} onSelect={vi.fn()} selection={null} matchIds={null} />)
     expect(screen.getByText('zoe')).toBeInTheDocument()
   })
 })

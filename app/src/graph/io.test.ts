@@ -48,4 +48,52 @@ describe('graph io', () => {
     const doc = new Y.Doc()
     expect(() => importGraph(doc, JSON.stringify({ version: 1, meta: { title: 't', template: 'blank', theme: 'light' }, nodes: [], edges: {} }))).toThrow(/invalid/i)
   })
+
+  it('rejects unknown template and leaves existing doc intact', () => {
+    const doc = new Y.Doc()
+    initGraphDoc(doc, { title: 'keep', template: 'friends', theme: 'light' })
+    addNode(doc, { label: 'survivor', type: 'person', x: 0, y: 0, color: '#fff', notes: '' })
+    expect(() => importGraph(doc, JSON.stringify({
+      version: 1,
+      meta: { title: 't', template: 'nope', theme: 'light' },
+      nodes: {},
+      edges: {},
+    }))).toThrow(/template/i)
+    // doc must still have the original node
+    expect(Object.keys(getNodes(doc))).toHaveLength(1)
+  })
+
+  it('rejects non-finite node coordinates', () => {
+    const doc = new Y.Doc()
+    expect(() => importGraph(doc, JSON.stringify({
+      version: 1,
+      meta: { title: 't', template: 'blank', theme: 'light' },
+      nodes: { abc: { label: 'n', type: 'node', x: 'NaNstr', y: 0, color: '#fff', notes: '' } },
+      edges: {},
+    }))).toThrow(/invalid/i)
+
+    expect(() => importGraph(doc, JSON.stringify({
+      version: 1,
+      meta: { title: 't', template: 'blank', theme: 'light' },
+      nodes: { abc: { label: 'n', type: 'node', x: Infinity, y: 0, color: '#fff', notes: '' } },
+      edges: {},
+    }))).toThrow(/invalid/i)
+  })
+
+  it('rejects invalid meta fields (non-string title, bad theme)', () => {
+    const doc = new Y.Doc()
+    expect(() => importGraph(doc, JSON.stringify({
+      version: 1,
+      meta: { title: 42, template: 'blank', theme: 'light' },
+      nodes: {},
+      edges: {},
+    }))).toThrow(/invalid/i)
+
+    expect(() => importGraph(doc, JSON.stringify({
+      version: 1,
+      meta: { title: 't', template: 'blank', theme: 'purple' },
+      nodes: {},
+      edges: {},
+    }))).toThrow(/invalid/i)
+  })
 })
