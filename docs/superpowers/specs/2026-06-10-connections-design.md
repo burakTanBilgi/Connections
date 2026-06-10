@@ -36,7 +36,7 @@ Three components; two are deliberately boring.
 **Browser client (React + Vite + TypeScript).** All plaintext and all keys live only here.
 - *Canvas UI:* React Flow renders/edits nodes and edges; collaborator cursors and presence overlay.
 - *Graph doc:* one Yjs document per graph — the source of truth, merged conflict-free by the CRDT. Persisted locally via y-indexeddb for offline tolerance.
-- *Crypto layer:* a small isolated module (WebCrypto) that encrypts every outgoing Yjs update with the graph key and decrypts incoming ones.
+- *Crypto layer:* a small isolated module (WebCrypto for AES-GCM/X25519; argon2 via libsodium WASM) that encrypts every outgoing Yjs update with the graph key and decrypts incoming ones.
 
 **Sync relay (Node, WebSocket).** Authenticates the connection (membership check), then fans out and persists encrypted Yjs updates per graph. Stores and forwards bytes it cannot read. Periodic encrypted snapshot compaction (client-produced) keeps load times sane.
 
@@ -60,7 +60,8 @@ Server-side (Postgres): users (id, email, auth verifier, public key, encrypted p
 
 - **Account keypair** (X25519) generated client-side at signup. Private key encrypted with a key derived from the password via **Argon2id**; stored server-side so login works from any device (Bitwarden/Proton pattern). The server can store it but never use it.
 - **Graph key**: one random **AES-256-GCM** key per graph, generated client-side at graph creation. Encrypts every Yjs update and snapshot.
-- **Invite** = wrap the graph key to the invitee's public key (sealed box); server stores the wrapped key, invitee unwraps client-side on accept.
+- **Invite** = wrap the graph key to the invitee's public key (sealed box); server stores the wrapped key, invitee unwraps client-side on accept. Invites are addressed by email; if the invitee has no account yet, the invite stays pending until they sign up (the key is wrapped only once their public key exists).
+- **Roles under E2EE**: editors and viewers both hold the graph key (a viewer who can decrypt can read — that's inherent). The *viewer* restriction is enforced by the relay rejecting their writes and by clients ignoring updates from non-editors.
 - **Revocation** = rotate: client generates a new graph key, re-encrypts a fresh snapshot, re-wraps for remaining members; relay stops serving the removed user. (They keep what they already saw — inherent to E2EE.)
 - **Recovery**: a 12-word recovery phrase (shown once at signup) wraps a backup of the private key. Password + phrase both lost ⇒ data unrecoverable, stated plainly in the UI at signup.
 - Auth to the API uses a password-derived verifier (separate derivation from the encryption key), so the password itself never reaches the server in a usable form.
@@ -71,7 +72,7 @@ Three screens:
 
 1. **Login / Signup** — email + password; recovery phrase shown once at signup.
 2. **Home** — list of my graphs, pending invites with join button, "+ new graph" which opens a **template picker modal** (cards: Blank / Friend web / Account map).
-3. **Canvas** — the app. Left toolbar (add node, connect, fit view, force layout). Top bar (title, member avatars + live cursors, Share button → invite by username with editor/viewer role). Right panel for selected node: label, type, color, notes, secret ([show] to reveal). 
+3. **Canvas** — the app. Left toolbar (add node, connect, fit view, force layout). Top bar (title, member avatars + live cursors, Share button → invite by email with editor/viewer role). Right panel for selected node: label, type, color, notes, secret ([show] to reveal). 
 
 Power-user features in MVP: keyboard-first editing (N node, E edge, / search, Del delete), JSON import/export of a whole graph, local (client-side, post-decryption) search, dark mode.
 
