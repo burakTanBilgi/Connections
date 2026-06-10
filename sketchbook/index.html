@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connections — Sketchbook</title>
+<link rel="stylesheet" href="https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/prod/index.css">
+<style>
+  html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
+  #app { display: flex; flex-direction: column; height: 100%; }
+  header {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 8px 12px; border-bottom: 1px solid #e5e5e5; background: #fafafa;
+  }
+  header h1 { font-size: 15px; margin: 0 12px 0 0; font-weight: 600; }
+  header a {
+    text-decoration: none; color: #333; font-size: 13px;
+    padding: 5px 10px; border-radius: 8px; border: 1px solid #ddd; background: #fff;
+  }
+  header a.active { background: #4a9eed; color: #fff; border-color: #4a9eed; }
+  #canvas { flex: 1; min-height: 0; }
+  body.shot header { display: none; }
+</style>
+<script>window.EXCALIDRAW_ASSET_PATH = "https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/prod/";</script>
+<script src="sketches.js"></script>
+<script type="importmap">
+{ "imports": {
+  "react": "https://esm.sh/react@18.3.1",
+  "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
+  "react-dom": "https://esm.sh/react-dom@18.3.1",
+  "react-dom/client": "https://esm.sh/react-dom@18.3.1/client"
+} }
+</script>
+</head>
+<body>
+<div id="app">
+  <header id="nav"></header>
+  <div id="canvas"></div>
+</div>
+<script type="module">
+import React from "react";
+import { createRoot } from "react-dom/client";
+import * as Ex from "https://esm.sh/@excalidraw/excalidraw@0.18.0?deps=react@18.3.1,react-dom@18.3.1&bundle";
+
+const params = new URLSearchParams(location.search);
+if (params.get("shot")) document.body.classList.add("shot");
+
+const sketches = window.SKETCHES;
+const current = sketches.find(s => s.id === params.get("s")) || sketches[sketches.length - 1];
+
+// nav
+const nav = document.getElementById("nav");
+nav.innerHTML = '<h1>Connections sketchbook</h1>' + sketches.map(s =>
+  `<a href="?s=${s.id}" class="${s.id === current.id ? "active" : ""}">${s.title}</a>`
+).join("");
+
+// shorthand -> real elements: apply deletes, drop pseudo-elements + raw bindings
+function prepare(raw) {
+  const deleted = new Set();
+  for (const el of raw) if (el.type === "delete") el.ids.split(",").forEach(i => deleted.add(i.trim()));
+  return raw
+    .filter(el => el.type !== "delete" && el.type !== "cameraUpdate" && el.type !== "restoreCheckpoint")
+    .filter(el => !deleted.has(el.id))
+    .map(({ startBinding, endBinding, ...el }) => el);
+}
+
+// Excalidraw loads its handwriting fonts lazily, only once text is on screen.
+// So: render once (triggers font fetch), wait for fonts, then convert AGAIN so
+// text widths are re-measured with the real font — otherwise labels get clipped.
+const root = createRoot(document.getElementById("canvas"));
+root.render(React.createElement(Ex.Excalidraw, {
+  initialData: { appState: { viewBackgroundColor: "#ffffff" } },
+  viewModeEnabled: true,
+  excalidrawAPI: async (api) => {
+    const make = () => Ex.convertToExcalidrawElements(prepare(current.elements), { regenerateIds: false });
+    try {
+      await Promise.race([
+        Promise.allSettled([
+          document.fonts.load("20px Excalifont"),
+          document.fonts.load("20px Virgil"),
+        ]),
+        new Promise(r => setTimeout(r, 3000)),
+      ]);
+    } catch {}
+    api.updateScene({ elements: make() });
+    await document.fonts.ready;
+    await new Promise(r => setTimeout(r, 500));
+    api.updateScene({ elements: make() });
+    setTimeout(() => {
+      api.scrollToContent(undefined, { fitToContent: true });
+      window.__READY = true;
+    }, 300);
+  },
+}));
+
+// auto-reload when I add a new sketch
+let last = null;
+if (!params.get("shot")) setInterval(async () => {
+  try {
+    const t = await (await fetch("sketches.js?t=" + Date.now())).text();
+    if (last && t !== last) location.reload();
+    last = t;
+  } catch {}
+}, 3000);
+</script>
+</body>
+</html>
