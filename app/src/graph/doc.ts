@@ -92,3 +92,12 @@ export function addNodeWithId(doc: Y.Doc, id: string, node: NodeData): void {
 export function addEdgeWithId(doc: Y.Doc, id: string, edge: EdgeData): void {
   doc.transact(() => doc.getMap('edges').set(id, toYMap({ ...edge })))
 }
+
+export function clearGraphContent(doc: Y.Doc): void {
+  doc.transact(() => {
+    const nodes = doc.getMap('nodes')
+    const edges = doc.getMap('edges')
+    for (const k of [...nodes.keys()]) nodes.delete(k)
+    for (const k of [...edges.keys()]) edges.delete(k)
+  })
+}
