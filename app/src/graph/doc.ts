@@ -84,3 +84,11 @@ export function setMeta(doc: Y.Doc, patch: Partial<GraphMeta>): void {
     for (const [k, v] of Object.entries(patch)) if (v !== undefined) m.set(k, v)
   })
 }
+
+export function addNodeWithId(doc: Y.Doc, id: string, node: NodeData): void {
+  doc.transact(() => doc.getMap('nodes').set(id, toYMap({ ...node })))
+}
+
+export function addEdgeWithId(doc: Y.Doc, id: string, edge: EdgeData): void {
+  doc.transact(() => doc.getMap('edges').set(id, toYMap({ ...edge })))
+}
