@@ -68,4 +68,22 @@ describe('graph doc', () => {
     expect(Object.keys(getNodes(d1)).length).toBe(2)
     expect(getNodes(d1)).toEqual(getNodes(d2))
   })
+
+  it('concurrent edits to different fields of the same node both survive', () => {
+    const d1 = fresh()
+    const id = addNode(d1, { label: 'zoe', type: 'person', x: 10, y: 20, color: '#a5d8ff', notes: '' })
+    const d2 = new Y.Doc()
+    Y.applyUpdate(d2, Y.encodeStateAsUpdate(d1))
+
+    updateNode(d1, id, { x: 999 })          // peer 1 moves the node
+    updateNode(d2, id, { label: 'zoey' })   // peer 2 renames it concurrently
+
+    Y.applyUpdate(d2, Y.encodeStateAsUpdate(d1))
+    Y.applyUpdate(d1, Y.encodeStateAsUpdate(d2))
+
+    for (const d of [d1, d2]) {
+      expect(getNodes(d)[id].x).toBe(999)
+      expect(getNodes(d)[id].label).toBe('zoey')
+    }
+  })
 })
